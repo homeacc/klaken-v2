@@ -52,14 +52,14 @@ async def health():
 
 @app.get("/status")
 async def get_status(
-    symbol: str = Query(..., description="Symbol: SOL or BTC")
+    symbol: str = Query(..., description="Symbol: SOL, BTC or ETH")
 ):
     base_symbol = get_base_symbol(symbol)
 
-    if base_symbol not in ["SOL", "BTC"]:
+    if base_symbol not in ["SOL", "BTC", "ETH"]:
         raise HTTPException(
             status_code=400,
-            detail=f"Symbol must be SOL or BTC, got: {base_symbol}"
+            detail=f"Symbol must be SOL, BTC or ETH, got: {base_symbol}"
         )
 
     logger.info(f"Processing /status for {base_symbol}")
