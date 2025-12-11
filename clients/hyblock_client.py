@@ -84,12 +84,13 @@ class HyblockClient:
                 logger.error(f"Error calling {path}: {e}")
                 return None
 
-    def _get_time_window(self, hours_back: int = 1) -> Dict:
+    def _get_time_window(self, hours_back: int = 1, timeframe: str = "5m") -> Dict:
         """Genera ventana temporal para endpoints históricos"""
         now = int(time.time())
         return {
             "startTime": now - (hours_back * 3600),
-            "endTime": now
+            "endTime": now,
+            "timeframe": timeframe
         }
 
     async def get_liquidation_levels(self, symbol: str) -> Optional[Dict]:

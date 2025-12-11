@@ -24,7 +24,7 @@ def _extract_latest(data: Optional[Dict], fields: List[str]) -> Optional[Dict]:
         return None
 
     latest = items[-1]  # Más reciente al final
-    result = {"timestamp": latest.get("timestamp")}
+    result = {"timestamp": latest.get("openDate")}  # Hyblock usa openDate, no timestamp
     for field in fields:
         if field in latest:
             result[field] = latest.get(field)
@@ -45,25 +45,25 @@ async def get_hyblock_raw(symbol: str, hyblock_client: HyblockClient) -> Dict:
 
     try:
         raw = await hyblock_client.get_top_traders(symbol_base)
-        top_traders = _extract_latest(raw, ["longRatio", "shortRatio", "longShortRatio"])
+        top_traders = _extract_latest(raw, ["longPct", "shortPct", "lsRatio"])
     except Exception as e:
         logger.warning(f"Error top_traders: {e}")
 
     try:
         raw = await hyblock_client.get_open_interest(symbol_base)
-        open_interest = _extract_latest(raw, ["openInterest", "openInterestChange"])
+        open_interest = _extract_latest(raw, ["open", "high", "low", "close"])
     except Exception as e:
         logger.warning(f"Error open_interest: {e}")
 
     try:
         raw = await hyblock_client.get_funding_rate(symbol_base)
-        funding_rate = _extract_latest(raw, ["fundingRate"])
+        funding_rate = _extract_latest(raw, ["fundingRate", "indicativeFundingRate"])
     except Exception as e:
         logger.warning(f"Error funding_rate: {e}")
 
     try:
         raw = await hyblock_client.get_whale_retail_delta(symbol_base)
-        whale_retail_delta = _extract_latest(raw, ["whaleDelta", "retailDelta", "delta"])
+        whale_retail_delta = _extract_latest(raw, ["whaleRetailDelta"])
     except Exception as e:
         logger.warning(f"Error whale_retail_delta: {e}")
 
