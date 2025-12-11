@@ -84,7 +84,16 @@ class HyblockClient:
                 logger.error(f"Error calling {path}: {e}")
                 return None
 
+    def _get_time_window(self, hours_back: int = 1) -> Dict:
+        """Genera ventana temporal para endpoints históricos"""
+        now = int(time.time())
+        return {
+            "startTime": now - (hours_back * 3600),
+            "endTime": now
+        }
+
     async def get_liquidation_levels(self, symbol: str) -> Optional[Dict]:
+        """Liquidation levels - snapshot (no requiere time window)"""
         params = {
             "coin": symbol.lower(),
             "exchange": self.exchange,
@@ -94,22 +103,37 @@ class HyblockClient:
         return await self.get("/liquidationLevels", params)
 
     async def get_open_interest(self, symbol: str) -> Optional[Dict]:
+        """Open interest - endpoint histórico"""
         params = {
             "coin": symbol.lower(),
-            "exchange": self.exchange
+            "exchange": self.exchange,
+            **self._get_time_window(1)
         }
         return await self.get("/openInterest", params)
 
     async def get_funding_rate(self, symbol: str) -> Optional[Dict]:
+        """Funding rate - endpoint histórico"""
         params = {
             "coin": symbol.lower(),
-            "exchange": self.exchange
+            "exchange": self.exchange,
+            **self._get_time_window(1)
         }
         return await self.get("/fundingRate", params)
 
     async def get_top_traders(self, symbol: str) -> Optional[Dict]:
+        """Top trader positions - endpoint histórico"""
         params = {
             "coin": symbol.lower(),
-            "exchange": self.exchange
+            "exchange": self.exchange,
+            **self._get_time_window(1)
         }
         return await self.get("/topTraderPositions", params)
+
+    async def get_whale_retail_delta(self, symbol: str) -> Optional[Dict]:
+        """Whale vs retail delta - endpoint histórico"""
+        params = {
+            "coin": symbol.lower(),
+            "exchange": self.exchange,
+            **self._get_time_window(1)
+        }
+        return await self.get("/whaleRetailDelta", params)
