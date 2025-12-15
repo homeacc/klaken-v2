@@ -12,7 +12,7 @@ from logic.snapshot_tracker import tracker
 from logic.snapshot_persistence import (
     get_snapshots_for_symbol,
     get_snapshot_by_id,
-    get_latest_snapshot,
+    get_latest_snapshot as get_persistent_snapshot,
     get_stats as get_db_stats
 )
 from logic.snapshot_scheduler import (
@@ -167,6 +167,43 @@ async def get_status(
                         "clusters_count": len(clusters)
                     }
                 }
+
+                # BTC Trend Filter for SOL/ETH (fail-safe)
+                if base_symbol != "BTC":
+                    try:
+                        btc_snapshot = get_persistent_snapshot("BTC")
+                        if btc_snapshot and "clusters" in btc_snapshot:
+                            btc_clusters = btc_snapshot["clusters"]
+                            btc_price = btc_snapshot.get("price", 0)
+
+                            if btc_clusters and btc_price > 0:
+                                btc_magnet = calculate_liquidation_magnet_score(btc_price, btc_clusters)
+
+                                # Determine BTC bias
+                                if btc_magnet > 0.3:
+                                    btc_bias = "BULLISH"
+                                elif btc_magnet < -0.3:
+                                    btc_bias = "BEARISH"
+                                else:
+                                    btc_bias = "NEUTRAL"
+
+                                analysis_result["btc_context"] = {
+                                    "magnet_score": round(btc_magnet, 4),
+                                    "bias": btc_bias,
+                                    "price": btc_price
+                                }
+
+                                # Check for correlation mismatch
+                                symbol_bias = confluence.get("bias", "NEUTRAL")
+                                symbol_bullish = "BULLISH" in symbol_bias
+                                symbol_bearish = "BEARISH" in symbol_bias
+                                btc_bullish = btc_bias == "BULLISH"
+                                btc_bearish = btc_bias == "BEARISH"
+
+                                if (symbol_bullish and btc_bearish) or (symbol_bearish and btc_bullish):
+                                    analysis_result["correlation_warning"] = "HIGH RISK: BTC Trend Mismatch"
+                    except Exception as e:
+                        logger.debug(f"BTC context unavailable: {e}")
         except Exception as e:
             logger.warning(f"Analysis failed for {base_symbol}: {e}")
             # analysis_result stays None - endpoint continues normally
@@ -261,7 +298,7 @@ def get_symbol_latest(symbol: str):
     if base_symbol not in ["SOL", "BTC", "ETH"]:
         raise HTTPException(status_code=400, detail=f"Invalid symbol: {base_symbol}")
 
-    snapshot = get_latest_snapshot(base_symbol)
+    snapshot = get_persistent_snapshot(base_symbol)
     if not snapshot:
         raise HTTPException(status_code=404, detail=f"No snapshots found for {base_symbol}")
 
