@@ -20,6 +20,15 @@ from logic.snapshot_scheduler import (
     stop_snapshot_scheduler,
     get_scheduler_status
 )
+from logic.features import (
+    calculate_liquidation_magnet_score,
+    interpret_magnet_score,
+    calculate_whale_score,
+    calculate_funding_score,
+    calculate_ls_score,
+    calculate_confluence_score,
+    interpret_institutional_signal
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -113,10 +122,60 @@ async def get_status(
         except Exception:
             pass  # Silencioso - no afecta el flujo principal
 
+        # Institutional Analysis (fail-safe)
+        analysis_result = None
+        try:
+            current_price = candles.get("current_price", 0)
+
+            if hyblock and current_price > 0:
+                # Extract raw values from hyblock
+                clusters = []
+                whale_delta = None
+                funding_rate = None
+                ls_ratio = None
+
+                if "liquidation_levels" in hyblock:
+                    clusters = hyblock["liquidation_levels"].get("data", [])
+
+                if "whale_retail_delta" in hyblock and hyblock["whale_retail_delta"]:
+                    whale_delta = hyblock["whale_retail_delta"].get("whaleRetailDelta")
+
+                if "funding_rate" in hyblock and hyblock["funding_rate"]:
+                    funding_rate = hyblock["funding_rate"].get("fundingRate")
+
+                if "top_traders" in hyblock and hyblock["top_traders"]:
+                    ls_ratio = hyblock["top_traders"].get("lsRatio")
+
+                # Calculate individual scores
+                magnet_score = calculate_liquidation_magnet_score(current_price, clusters) if clusters else 0.0
+                whale_score = calculate_whale_score(whale_delta)
+                funding_score = calculate_funding_score(funding_rate)
+                ls_score = calculate_ls_score(ls_ratio)
+
+                # Calculate confluence
+                confluence = calculate_confluence_score(
+                    magnet_score, whale_score, funding_score, ls_score
+                )
+
+                analysis_result = {
+                    "confluence": confluence,
+                    "interpretation": interpret_institutional_signal(confluence),
+                    "raw_values": {
+                        "whale_delta": whale_delta,
+                        "funding_rate": funding_rate,
+                        "ls_ratio": ls_ratio,
+                        "clusters_count": len(clusters)
+                    }
+                }
+        except Exception as e:
+            logger.warning(f"Analysis failed for {base_symbol}: {e}")
+            # analysis_result stays None - endpoint continues normally
+
         return {
             "symbol": base_symbol,
             "candles": candles,
             "hyblock": hyblock,
+            "analysis": analysis_result,
             "meta": {
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
                 "symbol_binance": candles.get("symbol_binance", f"{base_symbol}USDT")
